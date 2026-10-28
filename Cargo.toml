@@ -1,0 +1,10 @@
+[package]
+name = "sigmaos_access_log"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+[lib]
+name = "sigmaos_access_log"
+path = "src/lib.rs"
