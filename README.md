@@ -1,17 +1,14 @@
-# SigmaOS-access-log
+# SigmaOS Access Log
 
-Linux Mint/Omarchy/Arch-inspired component for SigmaOS.
+This crate is currently a minimal `no_std` component identity scaffold. Its
+only behavior is a `Component` value with a fixed name; it does not read,
+write, rotate, or inspect access logs.
 
-## Inspiration
+Before adding log handling, define which events are recorded, access controls,
+retention, redaction, rotation, and failure behavior. Logging must not expose
+credentials or sensitive identifiers by default.
 
-This component is inspired by Linux Mint, Omarchy, and Arch Linux to provide:
-- Essential OS functionality
-- Desktop integration
-- System management
-- Clear documentation
+## Development
 
-## Status
-
-- Architecture: Designed
-- Implementation: Basic
-- Testing: Basic
+The crate has no third-party dependencies. `cargo check --lib` checks the
+scaffold, not an access-log implementation. Its manifest declares Apache-2.0.
