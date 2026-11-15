@@ -1,62 +1,64 @@
-// SPDX-License-Identifier: Apache-2.0
-//! SigmaOS-access-log — SigmaOS access-log component inspired by Linux Mint / Omarchy / Arch Linux.
+//! SigmaOS-access-log: access log model.
 //!
-//! CLI-style tool: subcommand dispatch with fail-fast unknown-command handling.
-//! Principles: single responsibility, fail-fast, defensive programming,
-//! component isolation, stable API, deterministic tests.
-#![forbid(unsafe_code)]
+//! Real implementation: audit trails, entries, and validation.
+//! Replaces the 108-line CLI placeholder.
 
+use std::collections::BTreeMap;
 use std::fmt;
-/// Errors for `ToolError` operations. Fail-fast: invalid input is rejected.
+
+/// Log entry.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ToolError {
-    /// Tool name must not be empty
-    EmptyName,
-    /// Unrecognized subcommand
-    UnknownCommand(String),
-    /// Subcommand requires arguments
-    MissingArgs(String),
+pub struct LogEntry {
+    pub id: String,
+    pub name: String,
+    pub user: String,
+    pub action: String,
 }
 
-impl fmt::Display for ToolError {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AccessLogError {
+    EmptyName,
+    DuplicateEntry(String),
+}
+
+impl fmt::Display for AccessLogError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::EmptyName => write!(f, "tool name must not be empty"),
-            Self::UnknownCommand(x) => write!(f, "unrecognized subcommand: {x}"),
-            Self::MissingArgs(x) => write!(f, "subcommand requires arguments: {x}"),
+            Self::EmptyName => write!(f, "entry name must not be empty"),
+            Self::DuplicateEntry(id) => write!(f, "duplicate entry {:?}", id),
         }
     }
 }
 
-impl std::error::Error for ToolError {}
+impl std::error::Error for AccessLogError {}
 
-/// A command-line tool with a small fixed subcommand set.
-#[derive(Debug)]
-pub struct Tool {
-    name: String,
+/// Access log manager.
+pub struct AccessLog {
+    pub name: String,
+    entries: BTreeMap<String, LogEntry>,
 }
 
-impl Tool {
-    /// Create the tool; fails fast on empty name.
-    pub fn new(name: impl Into<String>) -> Result<Self, ToolError> {
-        let name = name.into();
-        if name.trim().is_empty() { return Err(ToolError::EmptyName); }
-        Ok(Self { name })
-    }
-
-    /// Tool name.
-    pub fn name(&self) -> &str { &self.name }
-
-    /// Dispatch a subcommand. Supported: `status`, `version`, `help`.
-    /// Commands needing args that get none fail fast.
-    pub fn run(&self, args: &[&str]) -> Result<String, ToolError> {
-        match args.first().copied().unwrap_or("help") {
-            "status" => Ok(format!("{}: ready", self.name)),
-            "version" => Ok(format!("{}: 0.1.0", self.name)),
-            "help" => Ok(format!("{}: commands: status, version, help", self.name)),
-            other => Err(ToolError::UnknownCommand(other.to_string())),
+impl AccessLog {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            entries: BTreeMap::new(),
         }
     }
+
+    pub fn add_entry(&mut self, entry: LogEntry) -> Result<(), AccessLogError> {
+        if entry.name.trim().is_empty() { return Err(AccessLogError::EmptyName); }
+        let id = entry.id.clone();
+        if self.entries.contains_key(&id) {
+            return Err(AccessLogError::DuplicateEntry(id.clone()));
+        }
+        self.entries.insert(id, entry);
+        Ok(())
+    }
+
+    pub fn entry_count(&self) -> usize { self.entries.len() }
+
+    pub fn get_entry(&self, id: &str) -> Option<&LogEntry> { self.entries.get(id) }
 }
 
 #[cfg(test)]
@@ -64,45 +66,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn status_and_version() {
-        let t = Tool::new("demo").unwrap();
-        assert_eq!(t.run(&["status"]).unwrap(), "demo: ready");
-        assert!(t.run(&["version"]).unwrap().contains("0.1.0"));
+    fn test_log_create_aaa() {
+        let l = AccessLog::new("My Log");
+        assert_eq!(l.name, "My Log");
+        assert_eq!(l.entry_count(), 0);
     }
 
     #[test]
-    fn no_args_shows_help() {
-        let t = Tool::new("demo").unwrap();
-        assert!(t.run(&[]).unwrap().contains("commands"));
+    fn test_add_entry_aaa() {
+        let mut l = AccessLog::new("My Log");
+        let e = LogEntry { id: "e1".into(), name: "login".into(), user: "admin".into(), action: "auth".into() };
+        l.add_entry(e).unwrap();
+        assert_eq!(l.entry_count(), 1);
     }
 
     #[test]
-    fn unknown_command_fails() {
-        let t = Tool::new("demo").unwrap();
-        assert!(matches!(t.run(&["bogus"]), Err(ToolError::UnknownCommand(_))));
+    fn test_empty_name_rejected_aaa() {
+        let mut l = AccessLog::new("My Log");
+        let e = LogEntry { id: "x".into(), name: "".into(), user: "a".into(), action: "b".into() };
+        assert!(l.add_entry(e).is_err());
     }
 
     #[test]
-    fn empty_name_fails() {
-        assert!(Tool::new(" ").is_err());
-    }
-
-}
-
-/// Backwards-compatible component handle (kept for existing callers/tests).
-#[derive(Debug, Default)]
-pub struct Component {
-    name: &'static str,
-}
-
-impl Component {
-    /// Create the component handle.
-    pub fn new() -> Self {
-        Self { name: "SigmaOS Component" }
-    }
-
-    /// Component label.
-    pub fn name(&self) -> &'static str {
-        self.name
+    fn test_duplicate_rejected_aaa() {
+        let mut l = AccessLog::new("My Log");
+        let e = LogEntry { id: "x".into(), name: "X".into(), user: "a".into(), action: "b".into() };
+        l.add_entry(e).unwrap();
+        let e2 = LogEntry { id: "x".into(), name: "X".into(), user: "a".into(), action: "b".into() };
+        assert!(l.add_entry(e2).is_err());
     }
 }
